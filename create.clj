@@ -168,7 +168,7 @@
                    :mode :safe
                    :pose {:x 0.0 :y 0.0 :theta 0.0})]
     (dosync (ref-set bot r-struct))
-    (write [128 131])
+    (write [START SAFE])
     (Thread/sleep 20)
     (format "Booted Create into safe mode on port %d." port)))
 
