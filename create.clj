@@ -30,8 +30,8 @@
   [sockobj]
   (let [tosock (new DataOutputStream (.getOutputStream sockobj))]
     (fn [opsseq]
-      (dorun (map #(.writeByte tosock %) opsseq))
-      (.flush tosock)))) 
+      (dorun (map #(doto tosock (.writeByte %) (.flush)) opsseq)))))
+      
 
 (defn make-socket
   "Returns a socket struct which is designed to communicate
@@ -131,6 +131,11 @@
   ADVANCE_BUTTON 108,
   PLAY_BUTTON 109)
 
+; numerical contants
+(bulkdef 
+  BOT_RADIUS 258.0,
+  STRAIGHT 32768)
+
 ;; low-level functions
 ;; ------------------------
 
@@ -140,8 +145,8 @@
   [n]
   (let [value (if (< n 0) (+ (bit-shift-left 1 16) n) 
                           n)]
-    (vec (cons (bit-and (bit-shift-right value 8) 255) 
-               (bit-and value 255)))))
+    (vec [(bit-and (bit-shift-right value 8) 255) 
+          (bit-and value 255)])))
 
 ;; instantiating the Create
 ;; ------------------------
@@ -150,9 +155,7 @@
            :send :recv :sensors :state :mode :pose)
 
 (def bot (ref (struct robot-struct)))
-
-(def write (@bot :send))
-(def receive (@bot :recv))
+(declare write receive)
 
 (defn init
   "Opens communications with serialdaemon.c and thus
@@ -168,19 +171,48 @@
                    :mode :safe
                    :pose {:x 0.0 :y 0.0 :theta 0.0})]
     (dosync (ref-set bot r-struct))
-    (write [START SAFE])
-    (Thread/sleep 20)
-    (format "Booted Create into safe mode on port %d." port)))
+    (def write (@bot :send))
+    (def receive (@bot :recv))
+    (write [START])
+    (Thread/sleep 200)
+    (write [SAFE])
+    (println (format "Booted Create into safe mode on port %d." port))))
 
 
 ;; movement functions
 ;; ------------------
 
 (defn- drive
-  [vel-mm radius-mm]
-  (dorun (map #'write [DRIVE
-                       (int->2twoscomp (int vel-mm))
-                       (int->2twoscomp (int radius-mm))])))
+  "Internal function. Backbone of go, et al."
+  [vel-mm radius-mm & turn-dir]
+  (let [vel (cond (> vel-mm 500) 500 ; cap values
+                  (< vel-mm -500) -500
+                  :else vel-mm)
+        rad (cond (> radius-mm 2000) STRAIGHT
+                  (< radius-mm -2000) STRAIGHT
+                  (= radius-mm 0) (if (= "CW" turn-dir) -1 1)
+                  :else radius-mm)]
+    (dorun (map #'write [[DRIVE]
+                         (int->2twoscomp (int vel))
+                         (int->2twoscomp (int rad))]))))
+(defn go
+  "(go) stops the robot. (go foo bar) causes the robot to move
+  forward at foo cm/sec and turn at bar deg/sec. (go foo) just
+  causes the robot to move forward at foo cm/sec."
+  ([] (drive 0 0)) ; stop
+  ([cm-sec] (drive (* 10.0 cm-sec) STRAIGHT)) ; drive straight
+  ([cm-sec deg-sec] ; curved path OR stationary turn
+   (let [rad-sec (Math/toRadians deg-sec)
+         dir (if (>= rad-sec 0) "CCW" 
+                                "CW")
+         vel-mm (* 10.0 cm-sec)]
+     (if (= vel-mm 0) (drive (* (Math/abs rad-sec) 
+                                  (/ BOT_RADIUS 2))
+                               0
+                               dir)
+                      (drive vel-mm (/ vel-mm (rad-sec)))))))
+           
 
+  
 
 
