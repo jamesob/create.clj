@@ -1,1 +1,8 @@
+gcc serialdaemon.c -o sd
+./sd -serial /dev/cu.KeySerial1 -port [someport] -baud 57600
+
+clj
+user=> (load-file "create.clj")
+user=> (create/init [somepot])
+
 bang bang, clap clap
