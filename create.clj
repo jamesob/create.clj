@@ -84,54 +84,82 @@
   SAFE_MODE 2,
   FULL_MODE 3)
 
-; sensors
-(bulkdef
-  BUMPS_AND_WHEEL_DROPS 7,
-  WALL_IR_SENSOR 8,
-  CLIFF_LEFT 9,
-  CLIFF_FRONT_LEFT 10,
-  CLIFF_FRONT_RIGHT 11,
-  CLIFF_RIGHT 12,
-  VIRTUAL_WALL 13,
-  LSD_AND_OVERCURRENTS 14,
-  INFRARED_BYTE 17,
-  BUTTONS 18,
-  DISTANCE 19,
-  ANGLE 20,
-  CHARGING_STATE 21,
-  VOLTAGE 22,
-  CURRENT 23,
-  BATTERY_TEMP 24,
-  BATTERY_CHARGE 25,
-  BATTERY_CAPACITY 26,
-  WALL_SIGNAL 27,
-  CLIFF_LEFT_SIGNAL 28,
-  CLIFF_FRONT_LEFT_SIGNAL 29,
-  CLIFF_FRONT_RIGHT_SIGNAL 30,
-  CLIFF_RIGHT_SIGNAL 31,
-  CARGO_BAY_DIGITAL_INPUTS 32,
-  CARGO_BAY_ANALOG_SIGNAL 33,
-  CHARGING_SOURCES_AVAILABLE 34,
-  OI_MODE 35,
-  SONG_NUMBER 36,
-  SONG_PLAYING 37,
-  NUM_STREAM_PACKETS 38,
-  REQUESTED_VELOCITY 39,
-  REQUESTED_RADIUS 40,
-  REQUESTED_RIGHT_VELOCITY 41,
-  REQUESTED_LEFT_VELOCITY 42,
-  POSE 100,
-  LEFT_BUMP 101,
-  RIGHT_BUMP 102,
-  LEFT_WHEEL_DROP 103,
-  RIGHT_WHEEL_DROP 104,
-  CENTER_WHEEL_DROP 105,
-  LEFT_WHEEL_OVERCURRENT 106,
-  RIGHT_WHEEL_OVERCURRENT 107,
-  ADVANCE_BUTTON 108,
-  PLAY_BUTTON 109)
+;; sensor wrangling
+;; ---------------------------
 
-; numerical contants
+(defstruct sens-struct
+           :opcode :groupid :bytesize :bit :value)
+
+(defn- build-sensmap
+  "Builds up a hashmap which contains a sens-struct for each
+  sensor on Create."
+  [& sensinfo]
+  (loop [sensmap {}
+         sensors (partition 5 sensinfo)
+         s (first sensors)]
+    (if sensors
+      (recur (assoc sensmap (first s) 
+                            (struct-map sens-struct
+                                    :opcode (nth s 1)
+                                    :groupid (nth s 2)
+                                    :bytesize (nth s 3)
+                                    :bit (nth s 4)))
+             (next sensors)
+             (first (next sensors)))
+      sensmap)))
+
+(defn init-sensors
+  "Initialize the sensmap data structure with values as specified
+  by the Create OI. Returns a hashmap populated by sens-structs."
+  []
+  (build-sensmap
+    ; name/key                     opcode groupid bytesize bit
+    "BUMPS_AND_WHEEL_DROPS"        7      1       1        nil,
+    "WALL_IR_SENSOR"               8      1       1        nil,
+    "CLIFF_LEFT"                   9      1       1        nil,
+    "CLIFF_FRONT_LEFT"            10      1       1        nil,
+    "CLIFF_FRONT_RIGHT"           11      1       1        nil,
+    "CLIFF_RIGHT"                 12      1       1        nil,
+    "VIRTUAL_WALL"                13      1       1        nil,
+    "LSD_AND_OVERCURRENTS"        14      1       1        nil,
+    "INFRARED_BYTE"               17      2       1        nil,
+    "BUTTONS"                     18      2       1        nil,
+    "DISTANCE"                    19      2       2        nil,
+    "ANGLE"                       20      2       2        nil,
+    "CHARGING_STATE"              21      3       1        nil,
+    "VOLTAGE"                     22      3       2        nil,
+    "CURRENT"                     23      3       2        nil,
+    "BATTERY_TEMP"                24      3       1        nil,
+    "BATTERY_CHARGE"              25      3       2        nil,
+    "BATTERY_CAPACITY"            26      3       2        nil,
+    "WALL_SIGNAL"                 27      4       2        nil,
+    "CLIFF_LEFT_SIGNAL"           28      4       2        nil,
+    "CLIFF_FRONT_LEFT_SIGNAL"     29      4       2        nil,
+    "CLIFF_FRONT_RIGHT_SIGNAL"    30      4       2        nil,
+    "CLIFF_RIGHT_SIGNAL"          31      4       2        nil,
+    "CARGO_BAY_DIGITAL_INPUTS"    32      4       1        nil,
+    "CARGO_BAY_ANALOG_SIGNAL"     33      4       2        nil,
+    "CHARGING_SOURCES_AVAILABLE"  34      4       1        nil,
+    "OI_MODE"                     35      5       1        nil,
+    "SONG_NUMBER"                 36      5       1        nil,
+    "SONG_PLAYING"                37      5       1        nil,
+    "NUM_STREAM_PACKETS"          38      5       1        nil,
+    "REQUESTED_VELOCITY"          39      5       2        nil,
+    "REQUESTED_RADIUS"            40      5       2        nil,
+    "REQUESTED_RIGHT_VELOCITY"    41      5       2        nil,
+    "REQUESTED_LEFT_VELOCITY"     42      5       2        nil,
+    "POSE"                       100    nil     nil        nil,
+    "LEFT_BUMP"                  101    nil     nil          1,
+    "RIGHT_BUMP"                 102    nil     nil          0,
+    "LEFT_WHEEL_DROP"            103    nil     nil          3,
+    "RIGHT_WHEEL_DROP"           104    nil     nil          2,
+    "CENTER_WHEEL_DROP"          105    nil     nil          4,
+    "LEFT_WHEEL_OVERCURRENT"     106    nil     nil          4,
+    "RIGHT_WHEEL_OVERCURRENT"    107    nil     nil          3,
+    "ADVANCE_BUTTON"             108    nil     nil          2,
+    "PLAY_BUTTON"                109    nil     nil          0))
+
+; numerical constants
 (bulkdef 
   BOT_RADIUS 258.0,
   STRAIGHT 32768)
@@ -142,11 +170,9 @@
 (defn int->2twoscomp
   "Convert an integer to a high-value, low-value two's complement
   pair. Returns high value first, in a vec. 255_{10} == 0xff."
-  [n]
-  (let [value (if (< n 0) (+ (bit-shift-left 1 16) n) 
-                          n)]
-    (vec [(bit-and (bit-shift-right value 8) 255) 
-          (bit-and value 255)])))
+  [value]
+  (vec [(bit-and (bit-shift-right value 8) 255) 
+        (bit-and value 255)]))
 
 ;; instantiating the Create
 ;; ------------------------
@@ -166,10 +192,7 @@
         r-struct (struct-map robot-struct
                    :send (socket :send)
                    :recv (socket :recv)
-                   :sensors {}
-                   :state :idle
-                   :mode :safe
-                   :pose {:x 0.0 :y 0.0 :theta 0.0})]
+                   :sensors {})]
     (dosync (ref-set bot r-struct))
     (def write (@bot :send))
     (def receive (@bot :recv))
@@ -188,8 +211,7 @@
   (let [vel (cond (> vel-mm 500) 500 ; cap values
                   (< vel-mm -500) -500
                   :else vel-mm)
-        rad (cond (> radius-mm 2000) STRAIGHT
-                  (< radius-mm -2000) STRAIGHT
+        rad (cond (> (Math/abs radius-mm) 2000) STRAIGHT
                   (= radius-mm 0) (if (= "CW" turn-dir) -1 1)
                   :else radius-mm)]
     (dorun (map #'write [[DRIVE]
@@ -206,10 +228,9 @@
          dir (if (>= rad-sec 0) "CCW" 
                                 "CW")
          vel-mm (* 10.0 cm-sec)]
-     (if (= vel-mm 0) (drive (* (Math/abs rad-sec) 
-                                  (/ BOT_RADIUS 2))
-                               0
-                               dir)
+     (if (= vel-mm 0) (drive (* (Math/abs rad-sec) (/ BOT_RADIUS 2))
+                             0
+                             dir)
                       (drive vel-mm (/ vel-mm (rad-sec)))))))
            
 
