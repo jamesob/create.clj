@@ -3,6 +3,6 @@ gcc serialdaemon.c -o sd
 
 clj
 user=> (load-file "create.clj")
-user=> (create/init [somepot])
+user=> (create/init [someport])
 
 bang bang, clap clap
