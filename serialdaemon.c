@@ -178,9 +178,7 @@ int makeSerialPortFd(char port[],int baud)
     {
     int fd; 
     struct termios newtio; 
-	printf("Attempting to open serial... ");
     fd = open(port,O_RDWR); // open up the port on read / write mode
-	printf("Opened.\n");
     if (fd == -1)
         return(-1); // Opps. We just has an error
         
@@ -420,8 +418,6 @@ int main(int argc, char *argv[])
         return; 
         }
 
-	printf("Made socket.\n");
-
     if (AUX_PORT != 0)
         {
         auxfd_pre = makeSocket(AUX_PORT);
@@ -433,10 +429,7 @@ int main(int argc, char *argv[])
             }
         }
 
-	printf("About to call makeSerialPort... \n");
-	printf("Serial: %s, baud: %d\n", SERIAL, BAUD);
     serialfd = makeSerialPortFd(SERIAL, BAUD);
-	printf("yo!\n");
     if (serialfd <= 0)
         { 
         printf("ERROR: couldn't open serial port!\n"); 
