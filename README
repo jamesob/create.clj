@@ -1,8 +1,15 @@
-gcc serialdaemon.c -o sd
-./sd -serial /dev/cu.KeySerial1 -port [someport] -baud 57600
+Programming an iRobot Create driver in Clojure is a horrible idea.
 
-clj
-user=> (load-file "create.clj")
-user=> (create/init [someport])
+    gcc serialdaemon.c -o sd
+    ./sd -serial /dev/cu.KeySerial1 -port [someport] -baud 57600
+
+    clj
+    user=> (load-file "create.clj")
+    user=> (def bot (ref (create/init [someport])))
+    user=> (create/update-sensors! bot)
+    user=> (create/go bot 10)
+    user=> (create/go bot)
+    user=> (create/go bot 10 10)
+    ...
 
 bang bang, clap clap
