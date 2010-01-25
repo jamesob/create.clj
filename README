@@ -7,9 +7,11 @@ Programming an iRobot Create driver in Clojure is a horrible idea.
     user=> (load-file "create.clj")
     user=> (def bot (ref (create/init [someport])))
     user=> (create/update-sensors! bot)
-    user=> (create/go bot 10)
-    user=> (create/go bot)
-    user=> (create/go bot 10 10)
+	
+	;; note the ugly dereference here
+    user=> (create/go @bot 10)
+    user=> (create/go @bot)
+    user=> (create/go @bot 10 10)
     ...
 
 bang bang, clap clap
